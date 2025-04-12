@@ -38,10 +38,24 @@ export default function RootLayout() {
                 <Stack.Screen name="index" />
                 <Stack.Screen name="splash" />
                 <Stack.Screen name="landing" />
-                <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+                <Stack.Screen 
+                  name="(auth)" 
+                  options={{ 
+                    headerShown: false,
+                    // Add specific options for the group
+                    presentation: 'modal' 
+                  }} 
+                />
+                <Stack.Screen 
+                  name="auth" 
+                  options={{ 
+                    headerShown: false,
+                    // Different presentation for the non-grouped route
+                    presentation: 'card'
+                  }} 
+                />
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-                <Stack.Screen name="auth" options={{ headerShown: false }} />
               </Stack>
               
               {/* Debug panel only appears in development mode */}

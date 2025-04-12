@@ -1,9 +1,9 @@
 // lets-go-lean/app/onboarding/target-weight.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Button, Text, TextInput, HelperText } from 'react-native-paper';
 import { router } from 'expo-router';
-import { storage } from '../../src/utils/storage';
+import { OnboardingData, storage } from '../../src/utils/storage';
 import { logger } from '../../src/utils/logger';
 import { 
   calculateBMR, 
@@ -11,6 +11,7 @@ import {
   calculateTargetCalories, 
   calculateEstimatedGoalDate 
 } from '../../src/utils/healthCalculations';
+import { Gender, ActivityLevel, GoalType } from '@/lib/types';
 
 export default function TargetWeight() {
   const [targetWeight, setTargetWeight] = useState('');
@@ -55,18 +56,33 @@ export default function TargetWeight() {
     try {
       // Get existing onboarding data
       const existingData = await storage.getOnboardingData();
-      if (!existingData) throw new Error('Missing onboarding data');
+      if (!existingData) {
+        setError('Missing onboarding data. Please start over.');
+        setLoading(false);
+        return;
+      }
 
+      // Validate that required fields exist
+      const requiredFields = {
+        current_weight: 'current weight',
+        height: 'height',
+        gender: 'gender',
+        birth_date: 'birth date',
+        activity_level: 'activity level',
+        goal: 'goal'
+      };
+
+      // Check each required field
+      for (const [field, label] of Object.entries(requiredFields)) {
+        if (!existingData[field as keyof OnboardingData]) {
+          setError(`Missing ${label}. Please go back and complete all steps.`);
+          setLoading(false);
+          return;
+        }
+      }
+      
       // Log the complete onboarding data to debug
       logger.debug('Complete onboarding data before calculations', existingData);
-      
-      // Validate that required fields exist
-      if (!existingData.current_weight) throw new Error('Missing current weight');
-      if (!existingData.height) throw new Error('Missing height');
-      if (!existingData.gender) throw new Error('Missing gender');
-      if (!existingData.birth_date) throw new Error('Missing birth date');
-      if (!existingData.activity_level) throw new Error('Missing activity level');
-      if (!existingData.goal) throw new Error('Missing goal');
 
       // Calculate age from birth date
       let age = 30; // Default fallback
@@ -92,26 +108,26 @@ export default function TargetWeight() {
 
       // Calculate BMR
       const bmr = calculateBMR(
-        existingData.current_weight,
-        existingData.height,
+        existingData.current_weight as number,
+        existingData.height as number,
         age,
-        existingData.gender
+        existingData.gender as Gender
       );
       logger.debug('BMR calculated', { bmr });
 
       // Calculate TDEE
-      const tdee = calculateTDEE(bmr, existingData.activity_level);
+      const tdee = calculateTDEE(bmr, existingData.activity_level as ActivityLevel);
       logger.debug('TDEE calculated', { tdee, activityLevel: existingData.activity_level });
 
       // Calculate target calories
-      const target_calories = calculateTargetCalories(tdee, existingData.goal);
+      const target_calories = calculateTargetCalories(tdee, existingData.goal as GoalType);
       logger.debug('Target calories calculated', { target_calories, goal: existingData.goal });
 
       // Calculate estimated goal date
       const estimated_goal_date = calculateEstimatedGoalDate(
-        existingData.current_weight,
+        existingData.current_weight as number,
         Number(targetWeight),
-        existingData.goal
+        existingData.goal as GoalType
       );
       logger.debug('Estimated goal date calculated', { 
         estimated_goal_date: estimated_goal_date.toISOString(), 
@@ -131,7 +147,7 @@ export default function TargetWeight() {
       logger.debug('Complete onboarding data saved', updatedData);
       
       // Redirect to registration screen
-      router.replace('/(auth)/register');
+      router.push('/(auth)/register');
     } catch (error) {
       logger.error('Target weight screen error', error);
       setError(error instanceof Error ? error.message : 'An error occurred');
@@ -139,6 +155,53 @@ export default function TargetWeight() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    const onboardingData = localStorage.getItem('onboardingData');
+    if (onboardingData) {
+      const data = JSON.parse(onboardingData) as OnboardingData;
+      
+      // Check for required fields
+      if (!data.birth_date || !data.current_weight || !data.height || !data.gender || !data.activity_level || !data.goal) {
+        console.error('Missing required onboarding data');
+        return;
+      }
+
+      // Calculate age properly
+      const birthDate = new Date(data.birth_date);
+      const today = new Date();
+      const age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      const adjustedAge = monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate()) 
+        ? age - 1 
+        : age;
+
+      // Calculate BMR and TDEE
+      const bmr = calculateBMR(
+        data.current_weight,
+        data.height,
+        adjustedAge,
+        data.gender
+      );
+      
+      const tdee = calculateTDEE(bmr, data.activity_level as ActivityLevel);
+      const targetCalories = calculateTargetCalories(tdee, data.goal as GoalType);
+      
+      // Calculate estimated goal date
+      const estimatedDate = calculateEstimatedGoalDate(
+        data.current_weight,
+        data.target_weight || 0,
+        data.goal as GoalType
+      );
+
+      console.log('Calculated values:', {
+        bmr,
+        tdee,
+        targetCalories,
+        estimatedDate: estimatedDate.toISOString()
+      });
+    }
+  }, []);
 
   return (
     <View style={styles.container}>

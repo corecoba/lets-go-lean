@@ -10,13 +10,20 @@ export const calculateBMR = (weight: number, height: number, age: number, gender
   if (weight > 300 || height > 250 || age > 120) {
     throw new Error('Input values are outside reasonable ranges');
   }
-  if (!['male', 'female'].includes(gender)) {
-    throw new Error('Gender must be either "male" or "female"');
+  if (!['male', 'female', 'other'].includes(gender)) {
+    throw new Error('Gender must be either "male", "female", or "other"');
   }
 
   // Mifflin-St Jeor Equation
   const baseBMR = 10 * weight + 6.25 * height - 5 * age;
-  return Math.round(gender === 'male' ? baseBMR + 5 : baseBMR - 161);
+  // For 'other' gender, use an average of male and female values
+  return Math.round(
+    gender === 'male' 
+      ? baseBMR + 5 
+      : gender === 'female' 
+        ? baseBMR - 161 
+        : baseBMR - 78  // Average of male and female adjustments
+  );
 };
 
 export const calculateTDEE = (bmr: number, activityLevel: ActivityLevel): number => {
