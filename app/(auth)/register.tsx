@@ -1,8 +1,8 @@
 // lets-go-lean/app/(auth)/register.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
 import { Button, TextInput, HelperText, Text } from 'react-native-paper';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { supabase, getTestEmail } from '../../src/lib/supabase';
 import { storage } from '../../src/utils/storage';
 import { logger } from '../../src/utils/logger';
@@ -19,6 +19,7 @@ interface RegisterForm {
 }
 
 export default function Register() {
+  const { from } = useLocalSearchParams();
   const [loading, setLoading] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [form, setForm] = useState<RegisterForm>({
@@ -27,6 +28,77 @@ export default function Register() {
     firstName: '',
     lastName: '',
   });
+
+  // Check for onboarding data on mount
+  useEffect(() => {
+    async function checkOnboardingData() {
+      if (from === 'onboarding') {
+        try {
+          const storedOnboardingData = await storage.getOnboardingData();
+          if (!storedOnboardingData) {
+            logger.error('Missing onboarding data after navigation from onboarding flow');
+            Alert.alert(
+              'Error',
+              'Missing onboarding data. Please complete the onboarding process first.',
+              [
+                {
+                  text: 'OK',
+                  onPress: () => router.push('/onboarding/goal-selection')
+                }
+              ]
+            );
+          } else {
+            logger.debug('Retrieved onboarding data in registration', storedOnboardingData);
+            
+            // Validate required fields
+            const requiredFields = {
+              current_weight: 'current weight',
+              height: 'height',
+              gender: 'gender',
+              birth_date: 'birth date',
+              activity_level: 'activity level',
+              goal: 'goal',
+              target_weight: 'target weight',
+              bmr: 'BMR',
+              target_calories: 'target calories',
+              estimated_goal_date: 'estimated goal date'
+            };
+
+            // Check each required field
+            for (const [field, label] of Object.entries(requiredFields)) {
+              if (!storedOnboardingData[field as keyof typeof storedOnboardingData]) {
+                logger.error(`Missing required field in onboarding data: ${field}`);
+                Alert.alert(
+                  'Error',
+                  `Missing ${label} data. Please complete the onboarding process again.`,
+                  [
+                    {
+                      text: 'OK',
+                      onPress: () => router.push('/onboarding/goal-selection')
+                    }
+                  ]
+                );
+                return;
+              }
+            }
+          }
+        } catch (error) {
+          logger.error('Error checking onboarding data', error);
+          Alert.alert(
+            'Error',
+            'Failed to load onboarding data. Please try again.',
+            [
+              {
+                text: 'OK',
+                onPress: () => router.push('/onboarding/goal-selection')
+              }
+            ]
+          );
+        }
+      }
+    }
+    checkOnboardingData();
+  }, [from]);
 
   // Validate email format
   const validateEmail = (email: string): boolean => {
@@ -64,6 +136,16 @@ export default function Register() {
 
       setLoading(true);
       try {
+        // Get onboarding data if coming from onboarding flow
+        const onboardingData = from === 'onboarding' ? await storage.getOnboardingData() : null;
+        
+        // Log the signup attempt with onboarding context
+        logger.debug('Attempting signup', { 
+          email: form.email,
+          firstName: form.firstName,
+          hasOnboardingData: !!onboardingData
+        });
+        
         // Check if we're retrying due to rate limiting
         if (retryCount > 0) {
           Alert.alert(
@@ -72,12 +154,6 @@ export default function Register() {
             [{ text: 'OK' }]
           );
         }
-        
-        // Log the signup attempt for debugging
-        logger.debug('Attempting signup', { 
-          email: form.email,
-          firstName: form.firstName
-        });
         
         // For test emails in development, make sure we're using the helper
         if (__DEV__ && (form.email.includes('test') || form.email.includes('example'))) {
@@ -115,16 +191,29 @@ export default function Register() {
           }
         }
         
-        // Sign up with Supabase Auth - include email confirmation based on environment
+        // Sign up with Supabase Auth
         const { data: authData, error: signUpError } = await supabase.auth.signUp({
           email: form.email,
           password: form.password,
           options: {
-            // In development, don't require email confirmation
             emailRedirectTo: __DEV__ ? undefined : window.location.origin,
             data: {
               first_name: form.firstName,
-              last_name: form.lastName || null
+              last_name: form.lastName || null,
+              // Include onboarding data in user metadata if available
+              ...(onboardingData && {
+                goal_type: onboardingData.goal,
+                current_weight: onboardingData.current_weight,
+                target_weight: onboardingData.target_weight,
+                height: onboardingData.height,
+                gender: onboardingData.gender,
+                birth_date: onboardingData.birth_date,
+                activity_level: onboardingData.activity_level,
+                bmr: onboardingData.bmr,
+                tdee: onboardingData.tdee,
+                target_calories: onboardingData.target_calories,
+                estimated_goal_date: onboardingData.estimated_goal_date
+              })
             }
           }
         });
@@ -224,10 +313,7 @@ export default function Register() {
         }
 
         if (!authData.user) throw new Error('No user data returned');
-
-        // Get onboarding data from local storage
-        const onboardingData = await storage.getOnboardingData();
-
+        
         // Log onboarding data for debugging
         logger.debug('Onboarding data validation check', onboardingData);
 

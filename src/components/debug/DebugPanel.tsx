@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, TouchableOpacity } from 'react-native';
 import { Portal, Modal, Button, List, Divider } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import SupabaseTester from './supabase-tester';
 
 interface LogEntry {
   timestamp: string;
@@ -15,9 +17,11 @@ interface LogEntry {
  * Only shows in __DEV__ mode
  */
 const DebugPanel: React.FC = () => {
+  const router = useRouter();
   const [visible, setVisible] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [selectedTab, setSelectedTab] = useState<'logs' | 'network' | 'user'>('logs');
+  const [showSupabaseTester, setShowSupabaseTester] = useState(false);
   
   // Using a ref for pending logs to avoid state updates during render
   const pendingLogsRef = useRef<LogEntry[]>([]);
@@ -210,6 +214,17 @@ const DebugPanel: React.FC = () => {
               </List.Section>
             )}
           </ScrollView>
+          
+          {!showSupabaseTester ? (
+            <TouchableOpacity
+              style={styles.button}
+              onPress={() => setShowSupabaseTester(true)}
+            >
+              <Text style={styles.buttonText}>Supabase Tester</Text>
+            </TouchableOpacity>
+          ) : (
+            <SupabaseTester />
+          )}
         </Modal>
       </Portal>
     </>
@@ -302,6 +317,16 @@ const styles = StyleSheet.create({
   logMessage: {
     flex: 1,
     fontSize: 12,
+  },
+  button: {
+    backgroundColor: '#2196F3',
+    padding: 10,
+    borderRadius: 5,
+    marginBottom: 5,
+  },
+  buttonText: {
+    color: 'white',
+    textAlign: 'center',
   },
 });
 

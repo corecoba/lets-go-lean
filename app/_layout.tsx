@@ -9,9 +9,15 @@ import { View } from 'react-native';
 import { AuthProvider } from '../src/contexts/AuthContext';
 import DebugPanel from '../src/components/debug/DebugPanel';
 import AuthGuard from '../src/components/auth/AuthGuard';
+import { ErrorBoundary } from '../src/components/common/ErrorBoundary';
 
-// Keep the splash screen visible while we fetch resources
+// Prevent auto-hiding splash screen
 SplashScreen.preventAutoHideAsync();
+
+export const unstable_settings = {
+  // Ensure that reloading on `/modal` keeps a back button present.
+  initialRouteName: 'index',
+};
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
@@ -29,41 +35,75 @@ export default function RootLayout() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <AuthProvider>
-        <AuthGuard>
-          <PaperProvider theme={theme}>
-            <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
-              <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="index" />
-                <Stack.Screen name="splash" />
-                <Stack.Screen name="landing" />
-                <Stack.Screen 
-                  name="(auth)" 
-                  options={{ 
+    <ErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <AuthProvider>
+          <AuthGuard>
+            <PaperProvider theme={theme}>
+              <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
+                <Stack
+                  screenOptions={{
                     headerShown: false,
-                    // Add specific options for the group
-                    presentation: 'modal' 
-                  }} 
-                />
-                <Stack.Screen 
-                  name="auth" 
-                  options={{ 
-                    headerShown: false,
-                    // Different presentation for the non-grouped route
-                    presentation: 'card'
-                  }} 
-                />
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-              </Stack>
-              
-              {/* Debug panel only appears in development mode */}
-              <DebugPanel />
-            </View>
-          </PaperProvider>
-        </AuthGuard>
-      </AuthProvider>
-    </GestureHandlerRootView>
+                    animation: 'slide_from_right',
+                    gestureEnabled: true,
+                    gestureDirection: 'horizontal',
+                  }}
+                >
+                  {/* Initial screens */}
+                  <Stack.Screen 
+                    name="index"
+                    options={{
+                      animation: 'none',
+                    }}
+                  />
+                  <Stack.Screen 
+                    name="splash"
+                    options={{
+                      animation: 'none',
+                    }}
+                  />
+                  <Stack.Screen 
+                    name="landing"
+                    options={{
+                      animation: 'fade',
+                    }}
+                  />
+                  
+                  {/* Onboarding flow */}
+                  <Stack.Screen 
+                    name="onboarding"
+                    options={{
+                      animation: 'slide_from_right',
+                    }}
+                  />
+                  
+                  {/* Auth routes */}
+                  <Stack.Screen 
+                    name="(auth)"
+                    options={{
+                      headerShown: false,
+                      presentation: 'modal',
+                      animation: 'slide_from_bottom',
+                    }}
+                  />
+                  
+                  {/* Main app */}
+                  <Stack.Screen 
+                    name="(tabs)"
+                    options={{
+                      headerShown: false,
+                      animation: 'fade',
+                    }}
+                  />
+                </Stack>
+                
+                {/* Debug panel only appears in development mode */}
+                <DebugPanel />
+              </View>
+            </PaperProvider>
+          </AuthGuard>
+        </AuthProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }

@@ -57,8 +57,22 @@ export default function AuthLayout() {
       headerShown: false,
       contentStyle: { backgroundColor: 'white' }
     }}>
-      <Stack.Screen name="login" />
-      <Stack.Screen name="register" />
+      <Stack.Screen 
+        name="login" 
+        options={{
+          title: 'Login',
+          presentation: 'modal',
+          animation: 'slide_from_bottom'
+        }}
+      />
+      <Stack.Screen 
+        name="register" 
+        options={{
+          title: 'Register',
+          presentation: 'modal',
+          animation: 'slide_from_bottom'
+        }}
+      />
     </Stack>
   );
 }

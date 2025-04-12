@@ -28,7 +28,7 @@ export default function LandingPage() {
         </Button>
         <Button
           mode="outlined"
-          onPress={() => router.push('/(auth)/login')}
+          onPress={() => router.push('/login')}
           style={styles.button}
           textColor="#4CAF50"
         >

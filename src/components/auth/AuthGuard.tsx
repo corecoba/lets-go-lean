@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, ActivityIndicator, Text, Platform } from 'react-native';
 import { router, usePathname, useSegments } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
@@ -18,89 +18,100 @@ const AuthGuard: React.FC<Props> = ({ children }) => {
   const segments = useSegments();
   const [isRedirecting, setIsRedirecting] = useState(false);
   
-  // Debug status message to help us understand the auth state
+  // Debug status message
   const status = loading ? 'Loading...' : 
                 session ? `Logged in as ${session.user?.email}` : 
                 'Not logged in';
-  
-  // More robust auth route detection
-  const isAuthRoute = pathname.includes('/login') || 
-                      pathname.includes('/register') ||
-                      pathname.includes('/forgot-password') ||
-                      pathname === '/(auth)' ||
-                      pathname === '/auth' ||
-                      pathname.startsWith('/(auth)/') || 
-                      pathname.startsWith('/auth/') ||
-                      (segments[0] === 'auth') || 
-                      (segments[0] === '(auth)');
+
+  // Define route types
+  const isAuthRoute = pathname === '/login' || 
+                     pathname === '/register' ||
+                     pathname === '/(auth)/login' ||
+                     pathname === '/(auth)/register' ||
+                     pathname.startsWith('/(auth)/');
+
+  const isPublicRoute = pathname === '/landing' || 
+                       pathname === '/' || 
+                       pathname === '/splash' ||
+                       pathname === '/index' ||
+                       pathname.startsWith('/onboarding/') ||
+                       pathname === '/onboarding';
+
+  const isProtectedRoute = !isAuthRoute && !isPublicRoute;
+
+  const handleRedirect = useCallback(async (targetPath: string) => {
+    if (isRedirecting) return;
+    
+    try {
+      setIsRedirecting(true);
+      await router.replace(targetPath);
+    } catch (error) {
+      logger.error('Navigation error in AuthGuard', error);
+    } finally {
+      // Reset redirecting state after a short delay to prevent rapid re-renders
+      setTimeout(() => setIsRedirecting(false), 100);
+    }
+  }, [isRedirecting]);
   
   useEffect(() => {
-    // Only proceed if loading is complete
     if (loading) return;
     
-    // Log the current state for debugging
     logger.debug('AuthGuard state check', {
       pathname,
       segments,
       isAuthRoute,
+      isPublicRoute,
+      isProtectedRoute,
       isLoggedIn: !!session,
-      userEmail: session?.user?.email,
-      platform: Platform.OS
+      platform: Platform.OS,
+      sessionDetails: session ? {
+        email: session.user?.email,
+        id: session.user?.id,
+        expiresAt: session.expires_at
+      } : null
     });
-    
-    // If user is logged in and trying to access auth routes, redirect them
-    if (session && isAuthRoute && !isRedirecting) {
-      // Set redirecting state to prevent multiple redirects
-      setIsRedirecting(true);
-      
-      logger.debug('AuthGuard: Blocking auth page access for logged-in user', {
-        from: pathname,
-        to: '/(tabs)/my-diary'
-      });
-      
-      // Force immediate redirect
-      router.replace('/(tabs)/my-diary');
+
+    // Case 1: Logged-in user trying to access auth routes
+    if (session && isAuthRoute) {
+      handleRedirect('/(tabs)/my-diary');
     }
-  }, [session, loading, pathname, segments, isAuthRoute, isRedirecting]);
+    
+    // Case 2: Non-logged-in user trying to access protected routes
+    if (!session && isProtectedRoute && !pathname.startsWith('/onboarding/')) {
+      handleRedirect('/landing');
+    }
+
+    // Case 3: Logged-in user on splash/index should go to main app
+    if (session && (pathname === '/splash' || pathname === '/index' || pathname === '/')) {
+      handleRedirect('/(tabs)/my-diary');
+    }
+
+    // Case 4: Non-logged-in user on splash/index should go to landing
+    if (!session && (pathname === '/splash' || pathname === '/index' || pathname === '/')) {
+      handleRedirect('/landing');
+    }
+  }, [session, loading, pathname, isAuthRoute, isProtectedRoute, handleRedirect]);
 
   // For debugging in dev mode
   if (__DEV__) {
     logger.debug('AuthGuard render info', { 
       isAuthRoute, 
-      isLoggedIn: !!session,
+      isPublicRoute,
+      isProtectedRoute,
       pathname,
-      isRedirecting
+      status
     });
   }
 
-  // Show loading indicator during initial auth check
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#2196F3" />
-        <Text style={{ marginTop: 10 }}>Loading authentication...</Text>
+        <ActivityIndicator size="large" />
+        <Text style={{ marginTop: 10 }}>Loading...</Text>
       </View>
     );
   }
 
-  // If the user is logged in and trying to access auth pages, 
-  // show loading until redirect happens
-  if ((session && isAuthRoute) || isRedirecting) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#2196F3" />
-        <Text style={{ marginTop: 10 }}>Redirecting to app...</Text>
-        {__DEV__ && (
-          <Text style={{ marginTop: 5, fontSize: 12, color: '#666' }}>
-            Auth state: {status}{'\n'}
-            Path: {pathname}
-          </Text>
-        )}
-      </View>
-    );
-  }
-
-  // Otherwise, render children
   return <>{children}</>;
 };
 

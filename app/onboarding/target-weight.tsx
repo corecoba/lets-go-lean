@@ -137,6 +137,7 @@ export default function TargetWeight() {
 
       // Save all data including calculations
       const updatedData = await storage.saveOnboardingData({
+        ...existingData,  // Keep existing data
         target_weight: Number(targetWeight),
         bmr,
         tdee,
@@ -146,8 +147,8 @@ export default function TargetWeight() {
 
       logger.debug('Complete onboarding data saved', updatedData);
       
-      // Redirect to registration screen
-      router.push('/(auth)/register');
+      // Redirect to registration screen with proper path
+      router.push('/auth/register');
     } catch (error) {
       logger.error('Target weight screen error', error);
       setError(error instanceof Error ? error.message : 'An error occurred');
