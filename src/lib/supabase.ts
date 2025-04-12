@@ -1,16 +1,16 @@
 import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
+import { Database } from '../../types/database.types';
 import { logger } from '../utils/logger';
 import Constants from 'expo-constants';
 
-// Get Supabase URL and anon key from environment variables or Constants
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || Constants.expoConfig?.extra?.supabaseUrl;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || Constants.expoConfig?.extra?.supabaseAnonKey;
+// Initialize Supabase client
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
-// Validate that we have the required configuration
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase configuration. Please check your environment variables.');
+  throw new Error('Missing Supabase environment variables');
 }
 
 // Add custom fetch with logging for debugging
@@ -85,8 +85,9 @@ const customFetch = async (input: RequestInfo | URL, init?: RequestInit): Promis
 };
 
 // Create and export the Supabase client
-export const supabase = createClient(supabaseUrl!, supabaseAnonKey!, {
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
+    storage: AsyncStorage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
@@ -95,6 +96,83 @@ export const supabase = createClient(supabaseUrl!, supabaseAnonKey!, {
     fetch: customFetch,
   },
 });
+
+// Helper function to handle Supabase errors
+export const handleSupabaseError = (error: any) => {
+  console.error('Supabase error:', error);
+  throw new Error(error.message || 'An error occurred with Supabase');
+};
+
+// Helper function to get current user
+export const getCurrentUser = async () => {
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error) throw error;
+    return user;
+  } catch (error) {
+    handleSupabaseError(error);
+  }
+};
+
+// Helper function to sign in
+export const signIn = async (email: string, password: string) => {
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    handleSupabaseError(error);
+  }
+};
+
+// Helper function to sign up
+export const signUp = async (email: string, password: string) => {
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    handleSupabaseError(error);
+  }
+};
+
+// Helper function to sign out
+export const signOut = async () => {
+  try {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+  } catch (error) {
+    handleSupabaseError(error);
+  }
+};
+
+// Helper function to reset password
+export const resetPassword = async (email: string) => {
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    if (error) throw error;
+  } catch (error) {
+    handleSupabaseError(error);
+  }
+};
+
+// Helper function to update password
+export const updatePassword = async (newPassword: string) => {
+  try {
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+    if (error) throw error;
+  } catch (error) {
+    handleSupabaseError(error);
+  }
+};
 
 // Export a development-friendly version for testing
 export const getTestEmail = (base = 'user') => {

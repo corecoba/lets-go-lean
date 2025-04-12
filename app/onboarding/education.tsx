@@ -135,7 +135,7 @@ export default function EducationScreen() {
 
         <View style={styles.iconContainer}>
           <MaterialCommunityIcons 
-            name={content.icon} 
+            name={content.icon as keyof typeof MaterialCommunityIcons.glyphMap}
             size={64} 
             color={content.iconColor} 
           />
